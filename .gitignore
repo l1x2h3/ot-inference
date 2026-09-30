@@ -1,0 +1,12 @@
+# data / models / heavy artifacts (regenerate via scripts/)
+data/
+models/
+results/*/
+!results/TABLES.md
+*.tar.gz
+__pycache__/
+*.pyc
+*.pt
+*.safetensors
+.DS_Store
+paper/review*.md
