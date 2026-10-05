@@ -5,7 +5,7 @@ import sys
 
 import torch
 
-sys.path.insert(0, "src")
+sys.path.insert(0, "/home/deployer/otlora/src")
 from ot_loss import CAOTLoss  # noqa: E402
 from salience import token_salience  # noqa: E402
 
@@ -22,8 +22,8 @@ def main():
     from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
     from peft import PeftModel
 
-    mp = "models/Qwen2.5-VL-3B-Instruct"
-    ad = "results/sft_s42/adapter_ep1"
+    mp = "/home/deployer/otlora/models/Qwen2.5-VL-3B-Instruct"
+    ad = "/home/deployer/otlora/results/sft_s42/adapter_ep1"
     processor = AutoProcessor.from_pretrained(mp, max_pixels=512 * 512)
     processor.tokenizer.padding_side = "left"
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
@@ -33,7 +33,7 @@ def main():
 
     # pick an abnormal example: GT mentions pleural effusion
     items = [json.loads(l) for l in open(
-        "data/processed/mimic_mlf/test.jsonl")]
+        "/home/deployer/otlora/data/processed/mimic_mlf/test.jsonl")]
     it = next(x for x in items if "pleural effusion" in x["report"].lower()
               and "no " not in x["report"].lower()[:200])
     img = Image.open(it["image_path"]).convert("RGB")
@@ -68,56 +68,73 @@ def main():
     _, info = ot(v.unsqueeze(0), tail.unsqueeze(0),
                  token_salience=sal.unsqueeze(0))
     plan = info["plan"][0].cpu()  # [Nv, T]
-    patch_mass = plan.sum(dim=1)  # mass received per patch
+
+    # NOTE (review4 item 13): with balanced OT the per-patch row sums equal the
+    # uniform marginal a_i and the per-token column sums equal b_t BY
+    # CONSTRUCTION -- plotting those shows marginals, not structure. We plot
+    # row-normalized coupling profiles instead: where each token's mass comes
+    # from, and how spatially concentrated (entropy) that profile is.
+    col = plan / (plan.sum(dim=0, keepdim=True) + 1e-9)      # [Nv, T] profiles
+    ent = -(col * (col + 1e-12).log()).sum(dim=0)            # spatial entropy per token
 
     # spatial layout: reconstruct grid from grid_thw (assume single image, t*h/2 x w/2)
     thw = full.image_grid_thw[0]
     h, w = int(thw[1]) // 2, int(thw[2]) // 2
-    mass = patch_mass[:h * w].reshape(1, 1, h, w)
-    mass = torch.nn.functional.interpolate(mass, size=(img.height, img.width),
-                                           mode="bilinear")[0, 0].cpu().numpy()
 
-    # top WORDS by received mass (merge BPE fragments; subwords rank high otherwise)
-    tok_mass = plan.sum(dim=0).cpu()
+    # token axis -> words (merge BPE fragments; subwords otherwise rank high)
     toks = [processor.tokenizer.decode([i]) for i in ids.tolist()]
-    words, wmass, cur, curm = [], [], "", []
-    for tk, m in zip(toks, tok_mass.tolist()):
+    tok_ent = ent.tolist()
+    words, went, tidx, cur, curm, curt = [], [], [], "", [], []
+    for ti, (tk, e) in enumerate(zip(toks, tok_ent)):
         if "<|" in tk or ">" == tk.strip():  # special tokens (e.g. <|im_end|>)
             continue
         if (tk.startswith(" ") or tk.startswith("\n")) and cur.strip():
             words.append(cur.strip())
-            wmass.append(sum(curm))
-            cur, curm = "", []
+            # a word's concentration = entropy of its averaged profile
+            prof = col[:, curt].mean(dim=1)
+            went.append(float(-(prof * (prof + 1e-12).log()).sum()))
+            cur, curm, curt = "", [], []
         cur += tk
-        curm.append(m)
+        curm.append(e)
+        curt.append(ti)
     if cur.strip():
-        words.append(cur.strip())
-        wmass.append(sum(curm))
-    top = sorted(range(len(words)), key=lambda i: -wmass[i])[:10]
+        prof = col[:, curt].mean(dim=1)
+        went.append(float(-(prof * (prof + 1e-12).log()).sum()))
+
+    # most-localized words (LOWEST profile entropy) for the bar chart
+    top = sorted(range(len(words)), key=lambda i: went[i])[:10]
+
+    # overlay: coupling profile of the most localized entity-ish word (len>3)
+    focus = next(i for i in top if len(words[i]) > 3)
+    cols = [t for t, tk in enumerate(toks) if words[focus][:4].lower() in tk.lower()]
+    prof = col[:, cols].mean(dim=1) if cols else col.mean(dim=1)
+    prof = prof / (prof.sum() + 1e-9)
+    mass = prof[:h * w].reshape(1, 1, h, w)
+    mass = torch.nn.functional.interpolate(mass, size=(img.height, img.width),
+                                           mode="bilinear")[0, 0].cpu().numpy()
 
     fig, axes = plt.subplots(1, 3, figsize=(6.2, 2.2), gridspec_kw={"width_ratios": [0.8, 0.8, 1.45]})
     fig.subplots_adjust(wspace=0.16)  # keep the two X-ray panels close together
     axes[0].imshow(img, cmap="gray"); axes[0].set_title("Input", fontsize=7.5, pad=3)
     axes[1].imshow(img, cmap="gray")
     axes[1].imshow(mass, alpha=0.5, cmap="inferno")
-    axes[1].set_title("OT mass", fontsize=7.5, pad=3)
+    axes[1].set_title('Coupling of "%s"' % words[focus][:12], fontsize=7.5, pad=3)
     sel = [i for i in top if len(words[i]) > 2][:8]
     names = [words[i][:14] for i in sel]
-    vals = [float(wmass[i]) for i in sel]
+    vals = [5.6 - went[i] for i in sel]  # concentration = max-entropy - entropy
+    vmax = max(vals) if max(vals) > 1e-9 else 1.0
     order = sorted(range(len(names)), key=lambda j: vals[j])
     axes[2].barh([names[j] for j in order], [vals[j] for j in order],
-                 color=plt.cm.inferno([0.35 + 0.6 * vals[j] / max(vals) for j in order]),
+                 color=plt.cm.inferno([0.35 + 0.6 * vals[j] / vmax for j in order]),
                  height=0.62, edgecolor="none")
-    axes[2].set_title("Top tokens", fontsize=7.5, pad=3)
+    axes[2].set_title("Most localized tokens", fontsize=7.5, pad=3)
+    axes[2].set_xlabel("spatial concentration", fontsize=7)
     axes[2].tick_params(axis="y", labelsize=7.5, length=0)
     axes[2].tick_params(axis="x", labelsize=6.5)
     axes[2].grid(axis="x", alpha=0.25, lw=0.5)
     for sp in ["top", "right", "left"]:
         axes[2].spines[sp].set_visible(False)
     axes[2].spines["bottom"].set_linewidth(0.6)
-    for yj, j in enumerate(order):
-        axes[2].text(vals[j] + 0.02 * max(vals), yj, f"{vals[j]:.2f}",
-                     va="center", fontsize=6)
     for ax in axes[:2]:
         ax.axis("off")
     fig.canvas.draw()
@@ -125,7 +142,7 @@ def main():
     pos2 = axes[2].get_position()
     x0 = pos1.x1 + 0.115            # gutter between images and bar chart = word labels
     axes[2].set_position([x0, pos1.y0, min(pos2.x1, 0.995) - x0, pos1.height])
-    fig.savefig("paper/figs/transport_viz.pdf", bbox_inches="tight", dpi=200)
+    fig.savefig("/home/deployer/otlora/paper/figs/transport_viz.pdf", bbox_inches="tight", dpi=200)
     print("VIZ_DONE")
 
 

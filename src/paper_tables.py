@@ -12,8 +12,8 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from chexpert_label import clinical_f1_from_pairs  # noqa: E402
 
-D = "data/processed"
-OUT = "results/TABLES.md"
+D = "/home/deployer/otlora/data/processed"
+OUT = "/home/deployer/otlora/results/TABLES.md"
 
 
 def load(ds, tag):
@@ -108,9 +108,9 @@ def main():
 
 def emit_latex():
     """Emit paper-ready LaTeX table fragments into paper/tables/."""
-    os.makedirs("paper/tables", exist_ok=True)
+    os.makedirs("/home/deployer/otlora/paper/tables", exist_ok=True)
     KEYS = ["BLEU-1", "BLEU-4", "ROUGE-L", "CIDEr", "distinct-2", "CEma", "CEmi"]
-    rg_path = "results/radgraph_full.json"
+    rg_path = "/home/deployer/otlora/results/radgraph_full.json"
     rg = {}
     if os.path.exists(rg_path):
         rg = json.load(open(rg_path))
@@ -119,10 +119,14 @@ def emit_latex():
 
     # reranking main table (whichever tag set exists: full > k8 subset)
     for tags, caption, fname in [
-        (["sft42_full_greedy", "sft42_full_random", "sft42_full_mbr",
+        (["sft42_full_greedy", "sft42_full_random", "sft42_full_longest",
+          "sft42_full_medlen", "sft42_full_mbr",
           "sft42_full_cospool", "sft42_full_ot",
           "sft42_full_ot_len", "sft42_full_logprob", "sft42_full_hybrid"],
-         "OT-guided candidate selection on the full MIMIC-MLF test set (k=8).",
+         "OT-guided candidate selection on the full MIMIC-MLF test set (k=8). "
+         "CE$_{ma}$/CE$_{mi}$: macro/micro clinical F1 over the 14 CheXpert "
+         "categories (rule labeler, Sect.~4.1); F1$_{\\mathrm{Rad}}$: "
+         "RadGraph micro-F1 (Sect.~4.2); Unique: distinct reports of 4{,}596.",
          "rerank_full.tex"),
         (["sft42_k8_greedy", "sft42_k8_random", "sft42_k8_mbr",
           "sft42_k8_cospool", "sft42_k8_ot",
@@ -143,6 +147,7 @@ def emit_latex():
                  + (" & F1$_{\\mathrm{Rad}}$" if rg else "") + " & Unique \\\\",
                  "\\midrule"]
         pretty = {"greedy": "Greedy (no reranking)", "random": "Random",
+                  "longest": "Longest candidate", "medlen": "Median-length cand.",
                   "mbr": "MBR (1-gram consensus)", "cospool": "Pooled cosine",
                   "ot": "OT cost", "ot_len": "OT + length prior",
                   "logprob": "Mean log-prob", "hybrid": "OT + log-prob (hybrid)"}
@@ -161,12 +166,16 @@ def emit_latex():
                 cells += " & " + (f"{rg[key]['F1']:.3f}" if key in rg else "--")
             lines.append(f"{shade}{name} & {cells} & {r['uniq']} \\\\")
         lines += ["\\bottomrule", "\\end{tabular}", "\\end{table*}"]
-        open(f"paper/tables/{fname}", "w").write("\n".join(lines))
+        open(f"/home/deployer/otlora/paper/tables/{fname}", "w").write("\n".join(lines))
 
     # training-time OT table
     lines = ["\\begin{table}[t]", "\\centering", "\\small",
              "\\caption{Training-time OT supervision under PEFT is absorbed: "
-             "clinical F1 stays within noise across OT weights (MIMIC-MLF test).}\\label{tab:trainot}",
+             "clinical F1 stays within noise across OT weights (MIMIC-MLF test). "
+             "These rows use the training-evaluation decoder (220 max tokens, no "
+             "repetition penalty), which yields a slightly stronger SFT greedy than "
+             "the rerank pipeline of Table~1 (B-1 0.188 vs.\\ 0.172); within-table "
+             "comparisons hold the decoder fixed.}\\label{tab:trainot}",
              "\\begin{tabular}{lcccc}", "\\toprule",
              "System & B-1 & B-4 & CE$_{ma}$ & CE$_{mi}$ \\\\", "\\midrule"]
     for t, name in [("zeroshot_mimic", "Zero-shot"),
@@ -179,7 +188,7 @@ def emit_latex():
             lines.append(f"{name} & {r['BLEU-1']:.3f} & {r['BLEU-4']:.3f} & "
                          f"{r['CEma']:.3f} & {r['CEmi']:.3f} \\\\")
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
-    open("paper/tables/train_ot.tex", "w").write("\n".join(lines))
+    open("/home/deployer/otlora/paper/tables/train_ot.tex", "w").write("\n".join(lines))
 
     # OT variant comparison as selection scores
     vlines = ["\\begin{table}[t]", "\\centering", "\\small",
@@ -197,9 +206,14 @@ def emit_latex():
               ("unb_t05", "Unb-$\\tau$0.5"),
               ("cos", "Cosine")]
     vrows = [(n, load("mimic_mlf", f"sft42_k8_var_{k}")) for k, n in vnames]
+    rnd = load("mimic_mlf", "sft42_k8_random")
     hyb = load("mimic_mlf", "sft42_k8_hybrid")
     have = [r for _, r in vrows if r]
     if have:
+        if rnd:
+            vlines.append(f"\\midrule\n\\multicolumn{{6}}{{l}}{{\\emph{{Reference baselines}}}} \\\\\n"
+                          f"Random selection & {rnd['BLEU-1']:.3f} & {rnd['BLEU-4']:.3f} & "
+                          f"{rnd['CEma']:.3f} & {rnd['CEmi']:.3f} & {rnd['uniq']} \\\\")
         for (n, r) in vrows:
             if r:
                 shade = "\\rowcolor{orange!22} " if n.startswith("Bal-$\\ell_2$-sal") else ""
@@ -212,7 +226,7 @@ def emit_latex():
     else:
         vlines.append("\\multicolumn{6}{l}{\\emph{(variant results pending; table auto-generated)}} \\\\")
     vlines += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
-    open("paper/tables/ot_variants.tex", "w").write("\n".join(vlines))
+    open("/home/deployer/otlora/paper/tables/ot_variants.tex", "w").write("\n".join(vlines))
 
     # ---- transfer table: RRG-2461 + IU X-Ray ----
     def c4(r):
@@ -242,7 +256,7 @@ def emit_latex():
                 "\\rowcolor{blue!7} " if s in ("ot", "ot_len") else "")
             tl.append(f"{shade}{pretty_t[s]} & {c4(rr)} & {c4(iu)} \\\\")
         tl += ["\\bottomrule", "\\end{tabular}", "\\end{table*}"]
-        open("paper/tables/transfer.tex", "w").write("\n".join(tl))
+        open("/home/deployer/otlora/paper/tables/transfer.tex", "w").write("\n".join(tl))
 
     # ---- robustness table: budget k / SFT seed / backbone ----
     def c3(r):
@@ -271,7 +285,9 @@ def emit_latex():
         bl.append("\\multicolumn{5}{l}{\\emph{Held-out SFT seeds (1{,}500 images)}} \\\\")
         bl += blk + ["\\midrule"]
     blk = []
-    for s, nm in [("greedy", "7B greedy"), ("ot", "7B OT cost"), ("hybrid", "7B hybrid")]:
+    for s, nm in [("greedy", "7B greedy"), ("random", "7B random"),
+                  ("logprob", "7B log-prob"), ("ot", "7B OT cost"),
+                  ("hybrid", "7B hybrid")]:
         r = load("mimic_mlf", f"sft7b_k8_{s}")
         if r:
             shade = "\\rowcolor{orange!22} " if s == "hybrid" else (
@@ -293,7 +309,7 @@ def emit_latex():
         bl.append("\\multicolumn{5}{l}{\\emph{Second family (LLaVA-1.5-7B, subset)}} \\\\")
         bl += blk
     bl += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
-    open("paper/tables/robustness.tex", "w").write("\n".join(bl))
+    open("/home/deployer/otlora/paper/tables/robustness.tex", "w").write("\n".join(bl))
 
 
 if __name__ == "__main__":

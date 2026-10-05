@@ -7,7 +7,7 @@ import sys
 
 import torch
 
-sys.path.insert(0, "src")
+sys.path.insert(0, "/home/deployer/otlora/src")
 from ot_loss import CAOTLoss  # noqa: E402
 from salience import entity_spans  # noqa: E402
 from chexpert_label import label_report  # noqa: E402
@@ -23,25 +23,46 @@ def latexify(w):
     return w
 
 
-def colored_tex(text, gt_text, max_words=45):
-    """Report text with \\textcolor-marked entity words."""
+def colored_tex(text, gt_text, max_words=45, colorize=True):
+    """Report text with \\textcolor-marked entity words (polarity-aware).
+
+    Only POSITIVE assertions are colored: green when the reference supports
+    the asserted category, red when it does not. Mentions negated or
+    hedged in their own sentence stay uncolored (they assert nothing), and
+    the reference row is never colored.
+    """
     spans = entity_spans(text)
-    gt_labels = label_report(gt_text)
+    gt_labels = label_report(gt_text) if colorize else {}
     words = text.split()[:max_words]
     offsets, cur = [], 0
     for w in words:
         offsets.append((cur, cur + len(w)))
         cur += len(w) + 1
+    # sentence boundaries in character offsets (same splitter as the labeler)
+    import re as _re
+    from chexpert_label import _SENT_SPLIT
+    sent_bounds = [0]
+    for m in _re.finditer(_SENT_SPLIT, text):
+        sent_bounds.append(m.end())
+    sent_bounds.append(len(text))
+    sent_of = {}
+    for si in range(len(sent_bounds) - 1):
+        a, b = sent_bounds[si], sent_bounds[si + 1]
+        for ch in range(a, b):
+            sent_of[ch] = (a, b)
+
     out = []
     for w, (a, b) in zip(words, offsets):
         hit = next((s for s, e in spans if not (b <= s or a >= e)), None)
-        if hit is not None:
-            e2 = text.find(" ", hit)
-            phrase = text[hit:e2] if e2 > 0 else text[hit:]
-            lab = label_report(phrase)
-            supported = any(v == 1 for v in lab.values()) and any(
-                gt_labels.get(k, 0) == 1 for k, v in lab.items() if v == 1)
-            color = "cgreen" if supported else "cred"
+        color = None
+        if hit is not None and colorize:
+            sa, sb = sent_of.get(hit, (0, len(text)))
+            sent_lab = label_report(text[sa:sb])
+            cats = [c for c, v in sent_lab.items() if v == 1]
+            if cats:  # positively asserted somewhere in this sentence
+                supported = any(gt_labels.get(c, 0) == 1 for c in cats)
+                color = "cgreen" if supported else "cred"
+        if color:
             out.append(r"\textcolor{%s}{%s}" % (color, latexify(w)))
         else:
             out.append(latexify(w))
@@ -60,13 +81,14 @@ def main():
     from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
     from peft import PeftModel
 
-    D = "data/processed/mimic_mlf"
-    FIGS = "paper/figs"
+    D = "/home/deployer/otlora/data/processed/mimic_mlf"
+    FIGS = "/home/deployer/otlora/paper/figs"
     cands = {r["id"]: r for r in map(json.loads, open(f"{D}/sft42_k8_cands.jsonl"))}
     hyb = {r["id"]: r for r in map(json.loads, open(f"{D}/sft42_k8_hybrid_pred.jsonl"))}
     items = {it["id"]: it for it in map(json.loads, open(f"{D}/test.jsonl"))}
 
     chosen = []
+    pool_all = []
     for cid, r in cands.items():
         h = hyb[cid]["pred"]
         if h == r["greedy"]:
@@ -74,18 +96,25 @@ def main():
         gl, hl = label_report(r["gt"]), label_report(h)
         gt_pos = {k for k, v in gl.items() if v == 1}
         hyb_pos = {k for k, v in hl.items() if v == 1}
+        pool_all.append(cid)
         if len(gt_pos) >= 2 and len(hyb_pos & gt_pos) >= 2:
             chosen.append((cid, len(hyb_pos & gt_pos)))
         if len(chosen) >= 12:
             break
     chosen = [c for c, _ in sorted(chosen, key=lambda x: -x[1])[:3]]
+    # + one randomly sampled disagreement case (uncurated), fixed seed
+    import random
+    rng = random.Random(7)
+    rest = [c for c in pool_all if c not in chosen]
+    if rest:
+        chosen.append(rng.choice(rest))
     print("cases:", chosen)
 
-    mp = "models/Qwen2.5-VL-3B-Instruct"
+    mp = "/home/deployer/otlora/models/Qwen2.5-VL-3B-Instruct"
     processor = AutoProcessor.from_pretrained(mp, max_pixels=512 * 512)
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         mp, torch_dtype=torch.bfloat16, device_map="cuda:0")
-    model = PeftModel.from_pretrained(model, "results/sft_s42/adapter_ep1")
+    model = PeftModel.from_pretrained(model, "/home/deployer/otlora/results/sft_s42/adapter_ep1")
     model.eval()
     ot = CAOTLoss(d_vision=model.config.hidden_size, d_text=model.config.hidden_size).cuda()
 
@@ -152,9 +181,11 @@ def main():
         for k in range(3):
             rows.append(
                 r"\begin{minipage}[c]{2.15cm}\centering "
-                + r"\includegraphics[width=2.0cm]{figs/case_%d_%d.png}" % (ci, k)
-                + r"\end{minipage} & \begin{minipage}[c]{9.9cm}\scriptsize\raggedright "
-                + r"\textbf{%s:} " % labels[k] + colored_tex(texts[k], r["gt"])
+                + r"\includegraphics[width=1.7cm]{figs/case_%d_%d.png}" % (ci, k)
+                + r"\end{minipage} & \begin{minipage}[c]{10.2cm}\scriptsize\raggedright "
+                + r"\textbf{%s:} " % labels[k]
+                + colored_tex(texts[k], r["gt"], colorize=(k > 0),
+                              max_words=(30 if ci == 0 else 45))
                 + r"\end{minipage}"
                 + (r" \\[4pt]" if k < 2 else r" \\"))
         rows.append(r"\cmidrule{1-2}")
@@ -162,10 +193,10 @@ def main():
     # emit two tables: first case for the main text, remaining for the appendix
     wrap = ("\\begin{tabular}{@{}c@{\\hspace{6pt}}p{9.9cm}@{}}\n%s\\end{tabular}")
     main_body = wrap % "\n".join(rows[:3]) + "\n"          # case 1: 3 rows
-    app_body = wrap % "\n".join(rows[4:11]) + "\n"         # cases 2-3 + middle cmidrule
-    open("paper/tables/case_main.tex", "w").write(main_body)
-    open("paper/tables/case_app.tex", "w").write(app_body)
-    open("paper/tables/case_rows.tex", "w").write(
+    app_body = wrap % "\n".join(rows[4:15]) + "\n"         # cases 2-4 (3 rows + rule each)
+    open("/home/deployer/otlora/paper/tables/case_main.tex", "w").write(main_body)
+    open("/home/deployer/otlora/paper/tables/case_app.tex", "w").write(app_body)
+    open("/home/deployer/otlora/paper/tables/case_rows.tex", "w").write(
         wrap % "\n".join(rows[:-1]) + "\n")                # legacy: all three
     print("CASE_ROWS_DONE")
 

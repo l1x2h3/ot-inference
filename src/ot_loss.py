@@ -142,7 +142,7 @@ class CAOTLoss(nn.Module):
         gate_threshold: float = 0.5,
         balanced: bool = True,
         unbalanced_tau: float = 0.8,
-        proj_mode: str = "fixed",  # 'fixed' random JL projection | 'learned'
+        proj_mode: str = "fixed",  # 'fixed' | 'fixed_shared' | 'learned'
     ):
         super().__init__()
         assert abs(lam_local + lam_global - 1.0) < 1e-6, "lambdas must sum to 1"
@@ -156,8 +156,18 @@ class CAOTLoss(nn.Module):
             # collapse to a constant map, driving transport cost to zero with
             # no grounding (observed empirically: OT loss -> 1e-4 and all
             # marginal variants become identical).
-            self.register_buffer("v_W", torch.randn(d_vision, d_proj) / (d_vision ** 0.5))
-            self.register_buffer("t_W", torch.randn(d_text, d_proj) / (d_text ** 0.5))
+            # 'fixed_shared': one matrix for BOTH modalities. With independent
+            # matrices the cost is a random bilinear form v'(P_v P_t')h whose
+            # expectation is 0 for ANY pair -- JL only preserves distances
+            # within one projected space. A shared P makes ||Pv - Ph|| track
+            # the genuine overlap of v and h in the raw space.
+            W = torch.randn(d_vision, d_proj) / (d_vision ** 0.5)
+            self.register_buffer("v_W", W)
+            if proj_mode == "fixed_shared":
+                assert d_vision == d_text, "shared projection needs matching dims"
+                self.register_buffer("t_W", self.v_W)  # same storage: one shared matrix
+            else:
+                self.register_buffer("t_W", torch.randn(d_text, d_proj) / (d_text ** 0.5))
         self.lam_local, self.lam_global = lam_local, lam_global
         self.epsilon, self.n_iters, self.cost_type = epsilon, n_iters, cost_type
         self.token_marginal = token_marginal

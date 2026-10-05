@@ -1,0 +1,34 @@
+{
+ "ot_vs_random": {
+  "B1_delta_mean": 0.0382,
+  "B1_frac_win": 1.0,
+  "B1_p_two_sided": 0.0,
+  "CEma_delta_mean": 0.0192,
+  "CEma_frac_win": 1.0,
+  "CEma_p_two_sided": 0.0
+ },
+ "hybrid_vs_logprob": {
+  "B1_delta_mean": 0.014,
+  "B1_frac_win": 1.0,
+  "B1_p_two_sided": 0.0,
+  "CEma_delta_mean": -0.003,
+  "CEma_frac_win": 0.097,
+  "CEma_p_two_sided": 0.194
+ },
+ "hybrid_vs_random": {
+  "B1_delta_mean": 0.0385,
+  "B1_frac_win": 1.0,
+  "B1_p_two_sided": 0.0,
+  "CEma_delta_mean": 0.0313,
+  "CEma_frac_win": 1.0,
+  "CEma_p_two_sided": 0.0
+ },
+ "hybrid_vs_greedy": {
+  "B1_delta_mean": 0.0908,
+  "B1_frac_win": 1.0,
+  "B1_p_two_sided": 0.0,
+  "CEma_delta_mean": 0.0655,
+  "CEma_frac_win": 1.0,
+  "CEma_p_two_sided": 0.0
+ }
+}

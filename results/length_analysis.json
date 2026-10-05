@@ -1,0 +1,86 @@
+{
+ "greedy": {
+  "p1_nobp": 0.353,
+  "BP": 0.4878,
+  "hyp_words": 40.2,
+  "ref_words": 69.1,
+  "p1_x_bp": 0.1722,
+  "finding_prec": 0.382,
+  "finding_rec": 0.2072
+ },
+ "random": {
+  "p1_nobp": 0.2974,
+  "BP": 0.7552,
+  "hyp_words": 53.9,
+  "ref_words": 69.1,
+  "p1_x_bp": 0.2246,
+  "finding_prec": 0.3615,
+  "finding_rec": 0.2585
+ },
+ "mbr": {
+  "p1_nobp": 0.3472,
+  "BP": 0.6457,
+  "hyp_words": 48.0,
+  "ref_words": 69.1,
+  "p1_x_bp": 0.2242,
+  "finding_prec": 0.3934,
+  "finding_rec": 0.2378
+ },
+ "ot": {
+  "p1_nobp": 0.2774,
+  "BP": 0.9475,
+  "hyp_words": 65.5,
+  "ref_words": 69.1,
+  "p1_x_bp": 0.2628,
+  "finding_prec": 0.3547,
+  "finding_rec": 0.3233
+ },
+ "logprob": {
+  "p1_nobp": 0.2491,
+  "BP": 1.0,
+  "hyp_words": 83.6,
+  "ref_words": 69.1,
+  "p1_x_bp": 0.2491,
+  "finding_prec": 0.3411,
+  "finding_rec": 0.3681
+ },
+ "hybrid": {
+  "p1_nobp": 0.2631,
+  "BP": 1.0,
+  "hyp_words": 74.8,
+  "ref_words": 69.1,
+  "p1_x_bp": 0.2631,
+  "finding_prec": 0.3489,
+  "finding_rec": 0.3632
+ },
+ "longest": {
+  "p1_nobp": 0.247,
+  "BP": 1.0,
+  "hyp_words": 84.5,
+  "ref_words": 69.1,
+  "B1": 0.247,
+  "CEma": 0.1993,
+  "uniq": "4577/4596",
+  "finding_prec": 0.3406,
+  "finding_rec": 0.3642
+ },
+ "medlen": {
+  "p1_nobp": 0.3159,
+  "BP": 0.688,
+  "hyp_words": 50.3,
+  "ref_words": 69.1,
+  "B1": 0.2173,
+  "CEma": 0.1679,
+  "uniq": "4273/4596",
+  "finding_prec": 0.363,
+  "finding_rec": 0.2521
+ },
+ "ot_len_pearson": {
+  "r": -0.2915,
+  "n": 41364
+ },
+ "ot_len_spearman_within": {
+  "mean_rho": 0.416,
+  "n_items": 4596
+ }
+}
