@@ -1,4 +1,4 @@
-# Transport, Don't Train (COLING 2027 submission)
+# Transport, Don't Train
 
 Code for *"Transport, Don't Train: Optimal Transport as an Inference-Time
 Selection Signal for Radiology Report Generation"*.
@@ -8,9 +8,11 @@ Selection Signal for Radiology Report Generation"*.
 Under MLLM PEFT, decoder-side OT **training losses** collapse (learned
 projections) or are absorbed by the LM objective (fixed projections) — but the
 **same transport geometry, used as an inference-time candidate-selection
-score**, improves BLEU-1 by up to +53%, clinical macro-F1 by +48%, and output
-diversity by 4.7x over greedy decoding on the full MIMIC-MLF test set,
-training-free (both gains p < 0.001, paired bootstrap).
+score**, improves over greedy decoding by up to +53% BLEU-1, +48% clinical
+macro-F1, and 4.7x output diversity on the full MIMIC-MLF test set,
+training-free. Relative to the random-selection and log-probability selection
+baselines, the OT signal adds +0.038 BLEU-1 / +0.019 macro-F1 over random and
+the hybrid +0.014 BLEU-1 over log-probability (paired bootstrap p < 0.001).
 
 ## Layout
 
