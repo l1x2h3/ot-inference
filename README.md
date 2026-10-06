@@ -12,7 +12,18 @@ score**, improves over greedy decoding by up to +53% BLEU-1, +48% clinical
 macro-F1, and 4.7x output diversity on the full MIMIC-MLF test set,
 training-free. Relative to the random-selection and log-probability selection
 baselines, the OT signal adds +0.038 BLEU-1 / +0.019 macro-F1 over random and
-the hybrid +0.014 BLEU-1 over log-probability (paired bootstrap p < 0.001).
+the hybrid +0.014 BLEU-1 over log-probability (paired bootstrap p <= 0.001).
+
+**Honest accounting (revision 2).** Most of the aggregate lexical/clinical
+gain of sampling-plus-selection is a *length* effect: greedy under-generates
+(40 vs 69 words), a pure target-length picker reaches B-1 0.267 on the full
+test set, and precision-vs-length interpolation explains every learned
+selector to +/-0.001. What survives same-length contrasts is a small but
+robust OT residual (+0.011 BLEU-1, 95% CI [+0.005, +0.017]); the SFT-vs-SFT+OT
+next-token KL (1.55) is of the same order as seed-to-seed KL (1.23). The
+deployed scorer used uniform token marginals and the first 256 visual tokens;
+`rerank_rev5.py` re-scores with true salience marginals, all visual tokens,
+and a shared projection.
 
 ## Layout
 

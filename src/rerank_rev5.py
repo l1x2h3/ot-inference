@@ -39,6 +39,10 @@ def main():
     ap.add_argument("--dataset", default="mimic_mlf")
     ap.add_argument("--data_root", default="/home/deployer/otlora/data/processed")
     ap.add_argument("--cands_tag", default="sft42_k8")
+    ap.add_argument("--out_tag", default=None)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--old_window", action="store_true",
+                    help="deployed tail window max(0,n-200) incl. prompt tokens")
     args = ap.parse_args()
 
     from PIL import Image
@@ -52,7 +56,7 @@ def main():
     model.eval()
     d_model = model.config.hidden_size
 
-    torch.manual_seed(0)
+    torch.manual_seed(args.seed)
     variants = {
         "uni_256": dict(token_marginal="uniform", proj_mode="fixed"),
         "sal_256": dict(token_marginal="salience", proj_mode="fixed"),
@@ -117,7 +121,7 @@ def main():
 
             for si in idx:
                 n = int(tok_lens[si])
-                start = max(plen, n - 200)
+                start = max(0, n - 200) if args.old_window else max(plen, n - 200)
                 tail_ids = enc.input_ids[si, start:n]
                 tail = hidden[si, start:n]
                 lg = logits[si, start - 1:n - 1]
@@ -160,12 +164,13 @@ def main():
         if (s // 4) % 25 == 0:
             print(f"scored {s + len(chunk)}/{len(rows)}", flush=True)
 
+    ot = args.out_tag or "r5"
     for strat, preds in picks.items():
-        with open(os.path.join(base, f"{args.cands_tag}_r5_{strat}_pred.jsonl"), "w") as f:
+        with open(os.path.join(base, f"{args.cands_tag}_{ot}_{strat}_pred.jsonl"), "w") as f:
             for r, p in zip(rows, preds):
                 f.write(json.dumps({"id": r["id"], "gt": r["gt"], "pred": p}) + "\n")
         print("WROTE", strat)
-    with open(os.path.join(base, f"{args.cands_tag}_r5_scores.jsonl"), "w") as f:
+    with open(os.path.join(base, f"{args.cands_tag}_{ot}_scores.jsonl"), "w") as f:
         for d in dump:
             f.write(json.dumps(d) + "\n")
     print("WROTE scores dump")
