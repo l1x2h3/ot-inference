@@ -101,11 +101,33 @@ def main():
         prof = col[:, curt].mean(dim=1)
         went.append(float(-(prof * (prof + 1e-12).log()).sum()))
 
-    # most-localized words (LOWEST profile entropy) for the bar chart
-    top = sorted(range(len(words)), key=lambda i: went[i])[:10]
+    # most-localized ENTITY words only (review5: "its"/"not" previously ranked
+    # high because any frequent subword has a peaked-by-construction profile).
+    # Entity = words inside a matched CheXpert phrase span (char-aligned), NOT
+    # phrase components (splitting phrases pollutes the lexicon with "is/the").
+    from salience import entity_spans
+    STOP = {"is", "are", "the", "a", "an", "of", "and", "or", "with", "without",
+            "its", "not", "no", "in", "on", "to", "as", "at", "by", "for",
+            "patient", "remains", "again", "demonstrates"}
+    # word char offsets while rebuilding the joined text
+    joined, offs, o = "", [], 0
+    for wd in words:
+        joined += (" " if joined else "") + wd
+        offs.append((o, o + len(wd)))
+        o += len(wd) + 1
+    span_words = set()
+    for s, e in entity_spans(joined):
+        for i, (ws, we) in enumerate(offs):
+            if ws < e and we > s:
+                span_words.add(i)
+    cand_idx = [i for i in (span_words | {i for i, wd in enumerate(words)
+                                          if len(wd) > 6 and wd.lower().strip(".,") not in STOP})
+                if words[i].lower().strip(".,") not in STOP]
+    cand_idx = sorted(cand_idx)
+    top = sorted(cand_idx, key=lambda i: went[i])[:10]
 
-    # overlay: coupling profile of the most localized entity-ish word (len>3)
-    focus = next(i for i in top if len(words[i]) > 3)
+    # overlay: the first clinical entity in the generated text (deterministic)
+    focus = cand_idx[0] if cand_idx else min(range(len(words)), key=lambda i: went[i])
     cols = [t for t, tk in enumerate(toks) if words[focus][:4].lower() in tk.lower()]
     prof = col[:, cols].mean(dim=1) if cols else col.mean(dim=1)
     prof = prof / (prof.sum() + 1e-9)
@@ -119,16 +141,16 @@ def main():
     axes[1].imshow(img, cmap="gray")
     axes[1].imshow(mass, alpha=0.5, cmap="inferno")
     axes[1].set_title('Coupling of "%s"' % words[focus][:12], fontsize=7.5, pad=3)
-    sel = [i for i in top if len(words[i]) > 2][:8]
+    sel = top[:8]
     names = [words[i][:14] for i in sel]
-    vals = [5.6 - went[i] for i in sel]  # concentration = max-entropy - entropy
+    vals = [went[i] for i in sel]  # spatial entropy: lower = more localized
     vmax = max(vals) if max(vals) > 1e-9 else 1.0
     order = sorted(range(len(names)), key=lambda j: vals[j])
     axes[2].barh([names[j] for j in order], [vals[j] for j in order],
                  color=plt.cm.inferno([0.35 + 0.6 * vals[j] / vmax for j in order]),
                  height=0.62, edgecolor="none")
     axes[2].set_title("Most localized tokens", fontsize=7.5, pad=3)
-    axes[2].set_xlabel("spatial concentration", fontsize=7)
+    axes[2].set_xlabel("profile entropy (lower = more localized)", fontsize=7)
     axes[2].tick_params(axis="y", labelsize=7.5, length=0)
     axes[2].tick_params(axis="x", labelsize=6.5)
     axes[2].grid(axis="x", alpha=0.25, lw=0.5)

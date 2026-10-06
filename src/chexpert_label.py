@@ -52,6 +52,12 @@ UNMENTION = _load("unmention")
 NEG_WORDS = re.compile(
     r"\b(no|not|without|free of|absent|resolution of|resolved|negative for|"
     r"declines|declined|denied|rules? out|rule out|excluded?|nor)\b", re.I)
+# Post-mention negators: "edema has resolved", "effusion is resolving",
+# "opacity ... has cleared", "no longer seen" (review5 item: post-positive
+# negation was missed, coloring resolved findings as supported).
+POST_NEG_WORDS = re.compile(
+    r"\b(has|have|is|are)?\s*(resolved|resolving|cleared|clears|improved|"
+    r"improving|no longer (?:seen|present|visible)|interval resolution)\b", re.I)
 UNCERT_WORDS = re.compile(
     r"\b(may|might|possible|possibly|questionable|cannot exclude|can't exclude|"
     r"cannot be excluded|concerning for|suspicious for|suggests?|likely|"
@@ -104,7 +110,8 @@ def label_report(text):
             if hit is None:
                 continue
             window = s[:hit.start()]
-            if NEG_WORDS.search(window):
+            post = s[hit.end():hit.end() + 48]
+            if NEG_WORDS.search(window) or POST_NEG_WORDS.search(post):
                 out[cat] = -1
             elif NORMAL_WORDS.search(s):
                 out[cat] = -1
