@@ -114,6 +114,11 @@ def emit_latex():
     rg = {}
     if os.path.exists(rg_path):
         rg = json.load(open(rg_path))
+    rg_old_path = "/home/deployer/otlora/results/radgraph_fullold.json"
+    if os.path.exists(rg_old_path):
+        rg_fullold = json.load(open(rg_old_path))
+        rg.update({"sft42_full_r5fullold_uni_256": rg_fullold.get("ot"),
+                   "sft42_full_r5fullold_hyb_sh_all": rg_fullold.get("hybrid")})
     ncol = len(KEYS) + 1 + (1 if rg else 0)
     colspec = "l" + "c" * ncol
 
@@ -121,12 +126,15 @@ def emit_latex():
     for tags, caption, fname in [
         (["sft42_full_greedy", "sft42_full_random", "sft42_full_longest",
           "sft42_full_medlen", "sft42_full_mbr",
-          "sft42_full_cospool", "sft42_full_ot",
-          "sft42_full_ot_len", "sft42_full_logprob", "sft42_full_hybrid"],
+          "sft42_full_r5fullold_uni_256",
+          "sft42_full_logprob",
+          "sft42_full_r5fullold_hyb_sh_all"],
          "OT-guided candidate selection on the full MIMIC-MLF test set (k=8). "
          "CE$_{ma}$/CE$_{mi}$: macro/micro clinical F1 over the 14 CheXpert "
          "categories (rule labeler, Sect.~4.1); F1$_{\\mathrm{Rad}}$: "
-         "RadGraph micro-F1 (Sect.~4.2); Unique: distinct reports of 4{,}596.",
+         "RadGraph micro-F1 (Sect.~4.2); Unique: distinct reports of 4{,}596. "
+         "The random row is one uniform draw; over 300 draws the expectation is "
+         "B-1 $0.2235{\pm}0.0013$, CE$_{ma}$ $0.167{\pm}0.003$.",
          "rerank_full.tex"),
         (["sft42_k8_greedy", "sft42_k8_random", "sft42_k8_mbr",
           "sft42_k8_cospool", "sft42_k8_ot",
@@ -150,10 +158,16 @@ def emit_latex():
                   "longest": "Longest candidate", "medlen": "Median-length cand.",
                   "mbr": "MBR (1-gram consensus)", "cospool": "Pooled cosine",
                   "ot": "OT cost", "ot_len": "OT + length prior",
-                  "logprob": "Mean log-prob", "hybrid": "OT + log-prob (hybrid)"}
+                  "logprob": "Mean log-prob", "hybrid": "OT + log-prob (hybrid)",
+                  "sft42_full_r5fullold_uni_256": "OT cost",
+                                    "sft42_full_r5fullold_hyb_sh_all": "OT + log-prob (hybrid)"}
         OURS = {"ot", "ot_len", "hybrid"}
         for t, r in pairs:
             key = t.split("_k8_")[-1] if "_k8_" in t else (t.split("_full_")[-1] if "_full_" in t else t)
+            if t == "sft42_full_r5fullold_uni_256":
+                key = "ot"
+            elif t == "sft42_full_r5fullold_hyb_sh_all":
+                key = "hybrid"
             name = pretty.get(key, t)
             shade = ""
             if key == "hybrid":
@@ -162,8 +176,9 @@ def emit_latex():
                 shade = "\\rowcolor{blue!7} "
             cells = " & ".join(f"{r[k]:.3f}" if isinstance(r[k], float) else str(r[k])
                                for k in KEYS)
+            rgk = t if t in rg else key
             if rg:
-                cells += " & " + (f"{rg[key]['F1']:.3f}" if key in rg else "--")
+                cells += " & " + (f"{rg[rgk]['F1']:.3f}" if rgk in rg else "--")
             lines.append(f"{shade}{name} & {cells} & {r['uniq']} \\\\")
         lines += ["\\bottomrule", "\\end{tabular}", "\\end{table*}"]
         open(f"/home/deployer/otlora/paper/tables/{fname}", "w").write("\n".join(lines))

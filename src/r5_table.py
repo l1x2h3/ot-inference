@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit the corrected-scorer comparison table (800-item subset)."""
+"""Window/configuration comparison table (800-item subset)."""
 import json
 
 D = "/home/deployer/otlora/data/processed/mimic_mlf"
@@ -8,17 +8,22 @@ ROWS = [
     ("sal\\_256", "sal_256"),
     ("sal\\_all", "sal_all"),
     ("sal\\_sh\\_all", "sal_sh_all"),
-    ("hyb\\_sh\\_all", "hyb_sh_all"),
+    ("hyb\\_sh\\_all (blend)", "hyb_sh_all"),
 ]
+def get(tag, v, f):
+    p = f"{D}/sft42_k8_{tag}_{v}_pred_{f}.json"
+    return json.load(open(p))
 lines = [r"\begin{table}[t]", r"\centering", r"\small",
-         r"\caption{Corrected scorer (candidate-only window, fixed JL seed, true salience) on the 800-item subset: uniform vs.\ salience marginals, 256 vs.\ all (${\sim}324$) visual tokens, independent vs.\ shared projection. The deployed scorer (prompt-inclusive window, unseeded draw) reached B-1 0.263 / CE$_{ma}$ 0.177 on these items. Random-selection expectation: B-1 $0.232{\pm}0.003$, CE$_{ma}$ $0.170{\pm}0.008$.}\label{tab:r5var}",
-         r"\setlength{\tabcolsep}{4pt}", r"\begin{tabular}{lcccc}", r"\toprule",
-         r"Scorer & B-1 & CE$_{ma}$ & CEmi & Uniq \\", r"\midrule"]
-for name, tag in ROWS:
-    n = json.load(open(f"{D}/sft42_k8_r5_{tag}_pred_nlg.json"))
-    c = json.load(open(f"{D}/sft42_k8_r5_{tag}_pred_ce2.json"))
-    u = n["unique_reports"].split("/")[0]
-    lines.append(f"{name} & {n['BLEU-1']:.3f} & {c['F1_macro']:.3f} & {c['F1_micro']:.3f} & {u} \\\\")
+         r"\caption{Scoring-window and configuration analysis on the 800-item subset (fixed JL seed). The \emph{anchored} window includes the decoder's image-token states ahead of the candidate (the deployed configuration); the \emph{candidate-only} window scores candidate tokens alone. Random-selection expectation: B-1 $0.232{\pm}0.003$, CE$_{ma}$ $0.170{\pm}0.008$.}\label{tab:r5var}",
+         r"\setlength{\tabcolsep}{3.5pt}",
+         r"\begin{tabular}{lcccc}", r"\toprule",
+         r"Scorer & \multicolumn{2}{c}{Anchored window} & \multicolumn{2}{c}{Candidate-only} \\",
+         r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}",
+         r" & B-1 & CE$_{ma}$ & B-1 & CE$_{ma}$ \\", r"\midrule"]
+for name, v in ROWS:
+    a = get("r5old", v, "nlg"); ac = get("r5old", v, "ce2")
+    c = get("r5", v, "nlg"); cc = get("r5", v, "ce2")
+    lines.append(f"{name} & {a['BLEU-1']:.3f} & {ac['F1_macro']:.3f} & {c['BLEU-1']:.3f} & {cc['F1_macro']:.3f} \\\\")
 lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
 open("/home/deployer/otlora/paper/tables/r5_variants.tex", "w").write("\n".join(lines) + "\n")
-print("WROTE r5_variants.tex")
+print("WROTE r5_variants.tex (two-window)")
