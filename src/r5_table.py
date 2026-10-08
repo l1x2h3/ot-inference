@@ -5,12 +5,15 @@ import json
 D = "/home/deployer/otlora/data/processed/mimic_mlf"
 ROWS = [
     ("uni\\_256", "uni_256"),
+    ("uni\\_sh", "uni_sh"),
     ("sal\\_256", "sal_256"),
     ("sal\\_all", "sal_all"),
     ("sal\\_sh\\_all", "sal_sh_all"),
     ("hyb\\_sh\\_all (blend)", "hyb_sh_all"),
 ]
 def get(tag, v, f):
+    if v == "uni_sh":
+        tag = "r5old2" if tag == "r5old" else "r5b"
     p = f"{D}/sft42_k8_{tag}_{v}_pred_{f}.json"
     return json.load(open(p))
 lines = [r"\begin{table}[t]", r"\centering", r"\small",
