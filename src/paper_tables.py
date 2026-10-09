@@ -257,8 +257,9 @@ def emit_latex():
             trows.append((s, rr, iu))
     if len(trows) >= 4:
         tl = ["\\begin{table*}[t]", "\\centering", "\\small",
-              "\\caption{Cross-dataset transfer of candidate selection, with no retraining "
-              "or re-tuning: the official MIMIC-CXR-RRG test split (2{,}097 of 2{,}461 studies; 364 with near-duplicate reports in the MIMIC-MLF training split excluded, Sect.~4.1) and IU X-Ray (590), same strategies as Table~\\ref{tab:rerank}.}\\label{tab:transfer}",
+              "\\caption{Cross-dataset transfer (no retraining or re-tuning): MIMIC-CXR-RRG "
+              "(2{,}097 studies, Sect.~4.1) and IU X-Ray (590); $\\uparrow$ higher is better.}"
+              "\\label{tab:transfer}",
               "\\setlength{\\tabcolsep}{4.5pt}",
               "\\begin{tabular}{lcccccccc}", "\\toprule",
               " & \\multicolumn{4}{c}{MIMIC-CXR-RRG (2{,}097)} & "
