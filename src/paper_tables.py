@@ -251,17 +251,16 @@ def emit_latex():
                 "hybrid": "OT + log-prob (hybrid)"}
     trows = []
     for s in ["greedy", "random", "ot", "ot_len", "logprob", "hybrid"]:
-        rr, iu = load("rrg_test", f"rrg_sft42_{s}"), load("iu", f"iu_sft42_{s}")
+        rr, iu = load("rrg_test", f"rrg_sft42_{s}_clean"), load("iu", f"iu_sft42_{s}")
         if rr and iu:
             trows.append((s, rr, iu))
     if len(trows) >= 4:
         tl = ["\\begin{table*}[t]", "\\centering", "\\small",
               "\\caption{Cross-dataset transfer of candidate selection, with no retraining "
-              "or re-tuning: the official MIMIC-CXR-RRG test split (2{,}461 studies) and "
-              "IU X-Ray (590), same strategies as Table~\\ref{tab:rerank}.}\\label{tab:transfer}",
+              "or re-tuning: the official MIMIC-CXR-RRG test split (2{,}097 of 2{,}461 studies; 364 with near-duplicate reports in the MIMIC-MLF training split excluded, Sect.~4.1) and IU X-Ray (590), same strategies as Table~\\ref{tab:rerank}.}\\label{tab:transfer}",
               "\\setlength{\\tabcolsep}{4.5pt}",
               "\\begin{tabular}{lcccccccc}", "\\toprule",
-              " & \\multicolumn{4}{c}{MIMIC-CXR-RRG (2{,}461)} & "
+              " & \\multicolumn{4}{c}{MIMIC-CXR-RRG (2{,}097)} & "
               "\\multicolumn{4}{c}{IU X-Ray (590)} \\\\",
               "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}",
               "Strategy & B-1 & B-4 & CE$_{ma}$ & Uniq & B-1 & B-4 & CE$_{ma}$ & Uniq \\\\",
