@@ -133,6 +133,7 @@ def emit_latex():
          "CE$_{ma}$/CE$_{mi}$: macro/micro clinical F1 over the 14 CheXpert "
          "categories (rule labeler, Sect.~4.1); F1$_{\\mathrm{Rad}}$: "
          "RadGraph micro-F1 (Sect.~4.2); Unique: distinct reports of 4{,}596. "
+         "$\\uparrow$: higher is better (all metrics; same below). "
          "The random row is one uniform draw; over 300 draws the expectation is "
          "B-1 $0.2235{\pm}0.0013$, CE$_{ma}$ $0.167{\pm}0.003$.",
          "rerank_full.tex"),
@@ -151,8 +152,8 @@ def emit_latex():
                  "\\setlength{\\tabcolsep}{4pt}",
                  f"\\begin{{tabular}}{{{colspec}}}",
                  "\\toprule",
-                 "Strategy & " + " & ".join(KEYS)
-                 + (" & F1$_{\\mathrm{Rad}}$" if rg else "") + " & Unique \\\\",
+                 "Strategy & " + " & ".join(f"{k} $\\uparrow$" for k in KEYS)
+                 + (" & F1$_{\\mathrm{Rad}}$ $\\uparrow$" if rg else "") + " & Uniq $\\uparrow$ \\\\",
                  "\\midrule"]
         pretty = {"greedy": "Greedy (no reranking)", "random": "Random",
                   "longest": "Longest candidate", "medlen": "Median-length cand.",
@@ -263,7 +264,7 @@ def emit_latex():
               " & \\multicolumn{4}{c}{MIMIC-CXR-RRG (2{,}097)} & "
               "\\multicolumn{4}{c}{IU X-Ray (590)} \\\\",
               "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}",
-              "Strategy & B-1 & B-4 & CE$_{ma}$ & Uniq & B-1 & B-4 & CE$_{ma}$ & Uniq \\\\",
+              "Strategy & B-1 $\\uparrow$ & B-4 $\\uparrow$ & CE$_{ma}$ $\\uparrow$ & Uniq $\\uparrow$ & B-1 $\\uparrow$ & B-4 $\\uparrow$ & CE$_{ma}$ $\\uparrow$ & Uniq $\\uparrow$ \\\\",
               "\\midrule"]
         for s, rr, iu in trows:
             shade = "\\rowcolor{orange!22} " if s == "hybrid" else (
